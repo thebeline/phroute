@@ -1,15 +1,18 @@
-<?php namespace Phroute\Phroute;
+<?php
+
+namespace Phroute\Phroute;
 
 use Phroute\Phroute\Exception\HttpMethodNotAllowedException;
 use Phroute\Phroute\Exception\HttpRouteNotFoundException;
+use Phroute\Phroute\Exception\DispatchContinueException;
 
-class Dispatcher {
+class Dispatcher implements RouteDispatcherInterface {
 
-    private $staticRouteMap;
-    private $variableRouteData;
-    private $filters;
     private $handlerResolver;
-    public $matchedRoute;
+	
+	private $routeCollection;
+	
+	private $requestObject;
 
     /**
      * Create a new route dispatcher.
@@ -17,24 +20,83 @@ class Dispatcher {
      * @param RouteDataInterface $data
      * @param HandlerResolverInterface $resolver
      */
-    public function __construct(RouteDataInterface $data, HandlerResolverInterface $resolver = null)
-    {
-        $this->staticRouteMap = $data->getStaticRoutes();
+    public function __construct(RouteCollectionInterface $routeCollection, HandlerResolverInterface $handlerResolver = null) {
+		$this->routeCollection = $routeCollection;
+		$this->handlerResolver = $handlerResolver ?: new HandlerResolver();
+    }
+	
+	public function setRequestObject($requestObject) {
+		if (!is_string($requestObject)) {
+			if (!($requestObject instanceof HttpRequestFactoryInterface))
+				throw new InvalidRequestException("Instantiated HttpRequest objects must implement HttpRequestFactoryInterface");
+		} elseif (!is_a($requestObject, __NAMESPACE__.'\\HttpRequestConstructableInterface'))
+			throw new InvalidRequestException('HttpRequest classes must implement HttpRequestConstructableInterface.');
+		
+		$this->requestObject = $requestObject;
+	}
 
-        $this->variableRouteData = $data->getVariableRoutes();
-        
-        $this->filters = $data->getFilters();
-        
-        if ($resolver === null)
-        {
-        	$this->handlerResolver = new HandlerResolver();
-        }
-        else
-        {
-        	$this->handlerResolver = $resolver;
-        }
+    /**
+     * @param $name
+     * @return bool
+     */
+    public function hasRoute($name) {
+        return $this->routeCollection->hasNamed($name);
     }
 
+    protected function newRequestObject($httpMethod, $uri = null) {
+		if (!is_string($httpMethod)) {
+			if (is_object($httpMethod)) {
+				if (!empty($uri))
+					throw new InvalidRequestException("Parameter 2 must be null when providing HttpRequest object.");
+				$requestObject = $httpMethod;
+			} else {
+				throw new InvalidRequestException("Parameter 1 must string or object of type HttpRequest.");
+			}
+		} elseif (empty($uri)) {
+			throw new InvalidRequestException("Parameter 2 must not be empty when not providing HttpRequest object.");
+		} else {
+			$objectSource = isset($this->requestObject) ? $this->requestObject : __NAMESPACE__.'\\HttpRequest';
+			if (is_object($objectSource)) {
+				$requestObject = $objectSource->factory($httpMethod, $uri);
+			} else {
+				$requestObject = new $objectSource($httpMethod, $uri);
+			}
+		}
+		
+		if (!($requestObject instanceof HttpRequestInterface))
+			throw new InvalidRequestException('HttpRequest Object must be of implement HttpRequestInterface.');
+		
+		return $requestObject;
+	}
+	
+	/**
+     * @param $name
+     * @param array $args
+     * @return string
+     */
+    public function route($name, array $parameters = null) {
+		$uri = '';
+		if ($this->hasRoute($name)) {
+			$route      = $this->routeCollection->getNamed($name);
+			$parameters = new \ArrayObject((array) $parameters);
+			
+			$event = $this->dispatchEvent('route_parameters', $route, $parameters);
+			if (!is_null($event) && ($event !== true))
+				return $event;
+			
+			// route parameter event
+			$uri = RouteParser::buildUri($route->getRouteParts(), $parameters->getArrayCopy());
+		}
+		return $uri;
+	}
+	
+	public function newDispatchIterator(HttpRequest $request) {
+		return new DispatchIterator($request, $this->routeCollection);
+	}
+	
+	// about filtering parameters
+	
+	
     /**
      * Dispatch a route for the given HTTP Method / URI.
      *
@@ -42,179 +104,129 @@ class Dispatcher {
      * @param $uri
      * @return mixed|null
      */
-    public function dispatch($httpMethod, $uri)
-    {
-        list($handler, $filters, $vars) = $this->dispatchRoute($httpMethod, trim($uri, '/'));
-
-        list($beforeFilter, $afterFilter) = $this->parseFilters($filters);
-
-        if(($response = $this->dispatchFilters($beforeFilter)) !== null)
-        {
-            return $response;
-        }
-        
-        $resolvedHandler = $this->handlerResolver->resolve($handler);
-        
-        $response = call_user_func_array($resolvedHandler, $vars);
-
-        return $this->dispatchFilters($afterFilter, $response);
+    public function dispatch($httpMethod, $uri = null) {
+		
+		$request = $this->newRequestObject($httpMethod, $uri);
+		
+		$dispatchIterator = $this->newDispatchIterator($request);
+		
+		foreach ($dispatchIterator as $dispatch_data) {
+			
+			list($routeID, $parameters) = $dispatch_data;
+			
+			try {
+				return $this->dispatchRouteID($routeID, $request, $parameters);
+			} catch (DispatchContinueException $continueException) {
+				continue;
+			}
+		
+		}
+		
+		if (isset($continueException))
+			throw $continueException->getPrevious();
+		if (isset($dispatch_data))
+			throw new HttpMethodNotAllowedException('Allow: ' . implode(', ', $dispatchIterator->getFoundMethods()));
+		else
+			throw new HttpRouteNotFoundException('Route ' . ($request->requestUri()) . ' not found.');
     }
-
-    /**
-     * Dispatch a route filter.
-     *
-     * @param $filters
-     * @param null $response
-     * @return mixed|null
-     */
-    private function dispatchFilters($filters, $response = null)
-    {
-        while($filter = array_shift($filters))
-        {
-        	$handler = $this->handlerResolver->resolve($filter);
-        	
-            if(($filteredResponse = call_user_func($handler, $response)) !== null)
-            {
-                return $filteredResponse;
-            }
-        }
+	
+	public function dispatchRouteID($routeID, HttpRequestInterface $request, array $parameters) {
+		
+		if (!($route = $this->routeCollection[$routeID]))
+			throw new DispatcherException("Invalid RouteID.");
+		
+		try {
+			
+			return $this->dispatchRoute($route, $request, $parameters);
+		
+		} catch (\Exception $exception) {
+			
+			$response = $this->dispatchEvent('exception', $route, $exception);
+			
+			if (empty($response))
+				throw $exception;
+			elseif ($response === true)
+				throw new DispatchContinueException("Route Dispatch of ID $routeID failed with Exception: ".$exception->getMessage(), 0, $exception);
+			else
+				return $response;
+			
+		}
+		
+	}
+	
+	protected function dispatchRoute(Route $route, HttpRequestInterface $request, array $parameters) {
+		if ($eventResponse = $this->dispatchEvent('init', $route, $request->httpMethod(), $request->requestUri()))
+			return $eventResponse;
+		
+		$parameters = new \ArrayObject($route->mapMatchedParameters($parameters));
+		
+		$event = $this->dispatchEvent('request_parameters', $route, $parameters);
+		if (!is_null($event) && ($event !== true))
+			return $event;
+		
+		$dispatchRequest = clone $request;
+		
+		$dispatchRequest->importParameters($parameters->getArrayCopy());
+		
+		$event = $this->dispatchEvent('before', $route, $dispatchRequest);
+		if (!is_null($event) && ($event !== true))
+			return $event;
+		
+		$handler = $route->getHandler();
+		
+		$routeHandler = $this->routeCollection->resolveHandler($handler);
+		
+		if (!is_callable($routeHandler = $this->handlerResolver->resolve($routeHandler)) && !is_callable($routeHandler = [$routeHandler, 'handleRoute']))
+			throw new DispatcherException("Invalid Route Handler.");
+		
+		$routeResponse = $this->dispatchHandler($routeHandler, $dispatchRequest);
+		
+		$event = $this->dispatchEvent('after', $route, $routeResponse);
+		if (!is_null($event) && ($event !== true))
+			return $event;
+		
+		return $routeResponse;
+	}
+	
+	protected function dispatchHandler($handler, ...$arguments) {
+		if (is_array($handler)) {
+			$callback = [
+				$this->handlerResolver->resolve($handler[0]),
+				$handler[1]
+			];
+			if (isset($handler[2]))
+				 $arguments += (array) $handler[2];
+		} else {
+			$callback = $this->handlerResolver->resolve($handler);
+		}
+		
+		if (!is_callable($callback) && (is_array($callback) || !is_callable($callback = [$callback, $event_name])))
+			throw new DispatcherException("Non-callable callback.");
+		
+		return $callback(...$arguments);
+	}
+	
+	protected function dispatchEvent($event_name, Route $route, ...$arguments) {
         
+		$response = null;
+		
+		$routeHandlers = $route->getEventHandlers($event_name);
+        
+		if (!empty($routeHandlers)) {
+			
+			$resolvedHandlers = $this->routeCollection->resolveHandlers($routeHandlers);
+			
+			foreach ($resolvedHandlers as $priority => $handlers) {
+				foreach ($handlers as $handler) {
+					$response = $this->dispatchHandler($handler, ...$arguments);
+					if (!is_null($response) && $response !== true)
+						break 2;
+				}
+			}
+		}
+		
         return $response;
-    }
-
-    /**
-     * Normalise the array filters attached to the route and merge with any global filters.
-     *
-     * @param $filters
-     * @return array
-     */
-    private function parseFilters($filters)
-    {        
-        $beforeFilter = array();
-        $afterFilter = array();
-        
-        if(isset($filters[Route::BEFORE]))
-        {
-            $beforeFilter = array_intersect_key($this->filters, array_flip((array) $filters[Route::BEFORE]));
-        }
-
-        if(isset($filters[Route::AFTER]))
-        {
-            $afterFilter = array_intersect_key($this->filters, array_flip((array) $filters[Route::AFTER]));
-        }
-        
-        return array($beforeFilter, $afterFilter);
-    }
-
-    /**
-     * Perform the route dispatching. Check static routes first followed by variable routes.
-     *
-     * @param $httpMethod
-     * @param $uri
-     * @throws Exception\HttpRouteNotFoundException
-     */
-    private function dispatchRoute($httpMethod, $uri)
-    {
-        if (isset($this->staticRouteMap[$uri]))
-        {
-            return $this->dispatchStaticRoute($httpMethod, $uri);
-        }
-        
-        return $this->dispatchVariableRoute($httpMethod, $uri);
-    }
-
-    /**
-     * Handle the dispatching of static routes.
-     *
-     * @param $httpMethod
-     * @param $uri
-     * @return mixed
-     * @throws Exception\HttpMethodNotAllowedException
-     */
-    private function dispatchStaticRoute($httpMethod, $uri)
-    {
-        $routes = $this->staticRouteMap[$uri];
-
-        if (!isset($routes[$httpMethod]))
-        {
-            $httpMethod = $this->checkFallbacks($routes, $httpMethod);
-        }
-        
-        return $routes[$httpMethod];
-    }
-
-    /**
-     * Check fallback routes: HEAD for GET requests followed by the ANY attachment.
-     *
-     * @param $routes
-     * @param $httpMethod
-     * @throws Exception\HttpMethodNotAllowedException
-     */
-    private function checkFallbacks($routes, $httpMethod)
-    {
-        $additional = array(Route::ANY);
-        
-        if($httpMethod === Route::HEAD)
-        {
-            $additional[] = Route::GET;
-        }
-        
-        foreach($additional as $method)
-        {
-            if(isset($routes[$method]))
-            {
-                return $method;
-            }
-        }
-        
-        $this->matchedRoute = $routes;
-        
-        throw new HttpMethodNotAllowedException('Allow: ' . implode(', ', array_keys($routes)));
-    }
-
-    /**
-     * Handle the dispatching of variable routes.
-     *
-     * @param $httpMethod
-     * @param $uri
-     * @throws Exception\HttpMethodNotAllowedException
-     * @throws Exception\HttpRouteNotFoundException
-     */
-    private function dispatchVariableRoute($httpMethod, $uri)
-    {
-        foreach ($this->variableRouteData as $data) 
-        {
-            if (!preg_match($data['regex'], $uri, $matches))
-            {
-                continue;
-            }
-
-            $count = count($matches);
-
-            while(!isset($data['routeMap'][$count++]));
-            
-            $routes = $data['routeMap'][$count - 1];
-
-            if (!isset($routes[$httpMethod]))
-            {
-                $httpMethod = $this->checkFallbacks($routes, $httpMethod);
-            } 
-
-            foreach (array_values($routes[$httpMethod][2]) as $i => $varName)
-            {
-                if(!isset($matches[$i + 1]) || $matches[$i + 1] === '')
-                {
-                    unset($routes[$httpMethod][2][$varName]);
-                }
-                else
-                {
-                    $routes[$httpMethod][2][$varName] = $matches[$i + 1];
-                }
-            }
-
-            return $routes[$httpMethod];
-        }
-
-        throw new HttpRouteNotFoundException('Route ' . $uri . ' does not exist');
-    }
+		
+	}
+	
 }
