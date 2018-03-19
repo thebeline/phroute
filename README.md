@@ -54,7 +54,7 @@ $router->any('/example', function(){
 ### Defining routes
 
 ~~~PHP
-use Phroute\Phroute\RouteCollector;
+use Yaprouter\Yaprouter\RouteCollector;
 
 $router = new RouteCollector();
 
@@ -109,7 +109,7 @@ $router->get('/user/{id}?', function($id = null) {
 });
 
 # NB. You can cache the return value from $router->getData() so you don't have to create the routes each request - massive speed gains
-$dispatcher = new Phroute\Phroute\Dispatcher($router->getData());
+$dispatcher = new Yaprouter\Yaprouter\Dispatcher($router->getData());
 
 $response = $dispatcher->dispatch($_SERVER['REQUEST_METHOD'], parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH));
     
@@ -274,16 +274,16 @@ A URI is dispatched by calling the `dispatch()` method of the created dispatcher
 accepts the HTTP method and a URI. Getting those two bits of information (and normalizing them
 appropriately) is your job - this library is not bound to the PHP web SAPIs.
 
-$response = (new Phroute\Phroute\Dispatcher($router))
+$response = (new Yaprouter\Yaprouter\Dispatcher($router))
             ->dispatch($_SERVER['REQUEST_METHOD'], $_SERVER['REQUEST_URI']);
 
 The `dispatch()` method will call the matched route, or if no matches, throw one of the exceptions below:
 
     # Route not found
-    Phroute\Phroute\Exception\HttpRouteNotFoundException;
+    Yaprouter\Yaprouter\Exception\HttpRouteNotFoundException;
     
     # Route found, but method not allowed
-    Phroute\Phroute\Exception\HttpMethodNotAllowedException;
+    Yaprouter\Yaprouter\Exception\HttpMethodNotAllowedException;
 
 > **NOTE:** The HTTP specification requires that a `405 Method Not Allowed` response include the
 `Allow:` header to detail available methods for the requested resource. 
@@ -303,7 +303,7 @@ but pimple/pimple or others will work just as well.
 ~~~PHP
 
 use Orno\Di\Container;
-use Phroute\Phroute\HandlerResolverInterface;
+use Yaprouter\Yaprouter\HandlerResolverInterface;
 
 class RouterResolver implements HandlerResolverInterface
 {
@@ -344,7 +344,7 @@ $appContainer = new Orno\Di;
 
 
 $resolver = new RouterResolver($appContainer);
-$response = (new Phroute\Phroute\Dispatcher($router, $resolver))->dispatch($requestMethod, $requestUri);
+$response = (new Yaprouter\Yaprouter\Dispatcher($router, $resolver))->dispatch($requestMethod, $requestUri);
 
 ~~~
 

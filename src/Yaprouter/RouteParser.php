@@ -1,7 +1,7 @@
-<?php namespace Phroute\Phroute;
+<?php namespace Yaprouter\Yaprouter;
 
-use Phroute\Phroute\Exception\BadRouteException;
-use Phroute\Phroute\Exception\BadValueException;
+use Yaprouter\Yaprouter\Exception\BadRouteException;
+use Yaprouter\Yaprouter\Exception\BadValueException;
 /**
  * Parses routes of the following form:
  *
@@ -267,10 +267,10 @@ class RouteParser {
 				$regex = $part[self::PART_REGEX];
 			
 				if (!preg_match('~^'.$regex.'$~', $value))
-					throw new BadValueException("The Variable Value '$value' does not match the variable regex '$regex'.");
+					throw new \InvalidArgumentException("The Variable Value '$value' does not match the variable regex '$regex'.");
 				
 			} elseif (empty($part[self::PART_IS_OPTIONAL]))
-				throw new BadValueException("Route Variable is not optional.");
+				throw new \InvalidArgumentException("Route Variable is not optional.");
 			
 		}
 		

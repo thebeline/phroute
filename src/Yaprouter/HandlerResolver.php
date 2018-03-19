@@ -1,4 +1,4 @@
-<?php namespace Phroute\Phroute;
+<?php namespace Yaprouter\Yaprouter;
 
 class HandlerResolver implements HandlerResolverInterface {
 	
@@ -8,7 +8,7 @@ class HandlerResolver implements HandlerResolverInterface {
 		
 		if (!empty($container)) {
 			if (!(is_array($container) || ($container instanceof \ArrayAccess)))
-				throw new HandlerResolverException('Internal HandlerResolver Container must be of type Array or implement \ArrayAccess');
+				throw new \InvalidArgumentException('Internal HandlerResolver Container must be of type Array or implement \ArrayAccess');
 			$this->container = $container;
 		}
 		

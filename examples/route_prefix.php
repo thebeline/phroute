@@ -2,8 +2,8 @@
 
 include __DIR__ . '/../vendor/autoload.php';
 
-use Phroute\Phroute\RouteCollector;
-use Phroute\Phroute\Dispatcher;
+use Yaprouter\Yaprouter\RouteCollector;
+use Yaprouter\Yaprouter\Dispatcher;
 
 $collector = new RouteCollector();
 

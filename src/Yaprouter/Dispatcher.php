@@ -1,10 +1,10 @@
 <?php
 
-namespace Phroute\Phroute;
+namespace Yaprouter\Yaprouter;
 
-use Phroute\Phroute\Exception\HttpMethodNotAllowedException;
-use Phroute\Phroute\Exception\HttpRouteNotFoundException;
-use Phroute\Phroute\Exception\DispatchContinueException;
+use Yaprouter\Yaprouter\Exception\HttpMethodNotAllowedException;
+use Yaprouter\Yaprouter\Exception\HttpRouteNotFoundException;
+use Yaprouter\Yaprouter\Exception\DispatchContinueException;
 
 class Dispatcher implements RouteDispatcherInterface {
 
@@ -28,9 +28,9 @@ class Dispatcher implements RouteDispatcherInterface {
 	public function setRequestObject($requestObject) {
 		if (!is_string($requestObject)) {
 			if (!($requestObject instanceof HttpRequestFactoryInterface))
-				throw new InvalidRequestException("Instantiated HttpRequest objects must implement HttpRequestFactoryInterface");
-		} elseif (!is_a($requestObject, __NAMESPACE__.'\\HttpRequestConstructableInterface'))
-			throw new InvalidRequestException('HttpRequest classes must implement HttpRequestConstructableInterface.');
+				throw new \InvalidArgumentException("Instantiated HttpRequest objects must implement HttpRequestFactoryInterface");
+		} elseif (!is_a($requestObject, __NAMESPACE__.'\\HttpRequestInterface'))
+			throw new \InvalidArgumentException('HttpRequest classes must implement HttpRequestConstructableInterface.');
 		
 		$this->requestObject = $requestObject;
 	}
@@ -47,24 +47,27 @@ class Dispatcher implements RouteDispatcherInterface {
 		if (!is_string($httpMethod)) {
 			if (is_object($httpMethod)) {
 				if (!empty($uri))
-					throw new InvalidRequestException("Parameter 2 must be null when providing HttpRequest object.");
+					throw new \InvalidArgumentException("Parameter 2 must be null when providing HttpRequest object.");
 				$requestObject = $httpMethod;
 			} else {
-				throw new InvalidRequestException("Parameter 1 must string or object of type HttpRequest.");
+				throw new \InvalidArgumentException("Parameter 1 must string or object of type HttpRequest.");
 			}
 		} elseif (empty($uri)) {
-			throw new InvalidRequestException("Parameter 2 must not be empty when not providing HttpRequest object.");
+			throw new \InvalidArgumentException("Parameter 2 must not be empty when not providing HttpRequest object.");
 		} else {
 			$objectSource = isset($this->requestObject) ? $this->requestObject : __NAMESPACE__.'\\HttpRequest';
 			if (is_object($objectSource)) {
 				$requestObject = $objectSource->factory($httpMethod, $uri);
 			} else {
-				$requestObject = new $objectSource($httpMethod, $uri);
+				$requestObject = new $objectSource();
+				$requestObject->importGlobals($_GLOBALS);
+				$requestObject->setMethod($httpMethod);
+				$requestObject->setUri($uri);
 			}
 		}
 		
 		if (!($requestObject instanceof HttpRequestInterface))
-			throw new InvalidRequestException('HttpRequest Object must be of implement HttpRequestInterface.');
+			throw new \InvalidArgumentException('HttpRequest Object must be of implement HttpRequestInterface.');
 		
 		return $requestObject;
 	}
@@ -93,9 +96,6 @@ class Dispatcher implements RouteDispatcherInterface {
 	public function newDispatchIterator(HttpRequest $request) {
 		return new DispatchIterator($request, $this->routeCollection);
 	}
-	
-	// about filtering parameters
-	
 	
     /**
      * Dispatch a route for the given HTTP Method / URI.

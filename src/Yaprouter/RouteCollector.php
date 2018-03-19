@@ -1,13 +1,13 @@
-<?php namespace Phroute\Phroute;
+<?php namespace Yaprouter\Yaprouter;
 
 use ReflectionClass;
 use ReflectionMethod;
 
-use Phroute\Phroute\Exception\BadRouteException;
+use Yaprouter\Yaprouter\Exception\BadRouteException;
 
 /**
  * Class RouteCollector
- * @package Phroute\Phroute
+ * @package Yaprouter\Yaprouter
  */
 class RouteCollector implements RouteCollectionProviderInterface {
 

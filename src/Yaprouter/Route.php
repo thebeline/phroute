@@ -1,4 +1,4 @@
-<?php namespace Phroute\Phroute;
+<?php namespace Yaprouter\Yaprouter;
 
 class Route extends AbstractParsedRouteData {
     
@@ -154,7 +154,7 @@ class Route extends AbstractParsedRouteData {
             if (!isset($parameters[$name]) && isset($meta['value']))
                 $parameters[$name] = $meta['value'];
             if (empty($parameters[$name]) && !empty($meta['required']))
-                throw new \Exception("Missing required parameter.");
+                throw new \InvalidArgumentException("Missing required parameter.");
         }
         
         return $parameters;
@@ -243,15 +243,6 @@ class Route extends AbstractParsedRouteData {
             self::OPTIONS,
         ];
     }
-    
-    
-    
-    
-    
-    
-    
-    
-    
     
     public static function trim($route) {
         return trim($route, '/');

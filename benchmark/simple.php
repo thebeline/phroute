@@ -2,7 +2,7 @@
 
 include __DIR__ . '/../vendor/autoload.php';
 
-$collector = new Phroute\Phroute\RouteCollector();
+$collector = new Yaprouter\Yaprouter\RouteCollector();
 
 $collector->get('/test', function(){
 
@@ -28,7 +28,7 @@ $collector->get('/test3/{name3}', function(){
 
 });
 
-$dispatcher =  new Phroute\Phroute\Dispatcher($collector->getData());
+$dispatcher =  new Yaprouter\Yaprouter\Dispatcher($collector->getData());
 
 $runTime = 10;
 
