@@ -2,7 +2,7 @@
 
 namespace Yaprouter\Yaprouter;
 
-interface RouteCollectionInterface implements \ArrayAccess {
+interface RouteCollectionInterface extends \ArrayAccess {
     
     public function __construct(array $routeEndpoints, array $staticRouteMap, array $variableRouteMap, array $namedRouteMap, array $handlers);
     

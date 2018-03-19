@@ -60,9 +60,9 @@ class Dispatcher implements RouteDispatcherInterface {
 				$requestObject = $objectSource->factory($httpMethod, $uri);
 			} else {
 				$requestObject = new $objectSource();
-				$requestObject->importGlobals($_GLOBALS);
-				$requestObject->setMethod($httpMethod);
-				$requestObject->setUri($uri);
+				$requestObject->importGlobals($GLOBALS);
+				$requestObject->setHttpMethod($httpMethod);
+				$requestObject->setRequestUri($uri);
 			}
 		}
 		

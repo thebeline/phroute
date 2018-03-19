@@ -1,5 +1,5 @@
 <?php 
-namespace Universal\Http;
+namespace Yaprouter\Yaprouter;
 
 interface HttpRequestInterface extends \ArrayAccess {
     

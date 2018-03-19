@@ -1,6 +1,5 @@
 <?php 
-namespace Universal\Http;
-use Universal\Http\FilesParameter;
+namespace Yaprouter\Yaprouter;
 
 class HttpRequest implements HttpRequestInterface {
     
@@ -118,7 +117,7 @@ class HttpRequest implements HttpRequestInterface {
         }
         if (isset($globals['_SERVER'])) {
             unset($this->_dataBags['headers']);
-            $this->_dataBags['headers'] = static::createHeadersFromServerGlobal($global['_SERVER']);
+            $this->_dataBags['headers'] = static::createHeadersFromServerGlobal($globals['_SERVER']);
         }
     }
 
