@@ -113,7 +113,7 @@ class RouteCollection implements RouteCollectionInterface {
         foreach ($this->routeEndpoints as $i => $endpoint)
             $this->__routeEndpoints[$i] = serialize($endpoint);
         
-        return ['__routeEndpoints', 'staticRouteMap', 'variableRouteMap', 'namedRouteMap', 'filters'];
+        return ['__routeEndpoints', 'staticRouteMap', 'variableRouteMap', 'namedRouteMap', 'handlers'];
     }
     
 }

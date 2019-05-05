@@ -29,7 +29,7 @@ class RouteCollector implements RouteCollectionProviderInterface {
     /**
      * @var array
      */
-    private $filters = [];
+    private $handlers = [];
     /**
      * @var array
      */
