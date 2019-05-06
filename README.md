@@ -109,7 +109,7 @@ $router->get('/user/{id}?', function($id = null) {
 });
 
 # NB. You can cache the return value from $router->getData() so you don't have to create the routes each request - massive speed gains
-$dispatcher = new Yaprouter\Yaprouter\Dispatcher($router->getData());
+$dispatcher = new Yaprouter\Yaprouter\Dispatcher($router->getCollection());
 
 $response = $dispatcher->dispatch($_SERVER['REQUEST_METHOD'], parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH));
     
